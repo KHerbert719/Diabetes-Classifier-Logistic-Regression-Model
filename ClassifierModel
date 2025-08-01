@@ -1,0 +1,82 @@
+# Create Classifier Model
+
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+
+# Load the data
+df = pd.read_csv('diabetes.csv')
+
+# Add a 'patient_id' column
+df = df.reset_index().rename(columns={'index': 'patient_id'})
+df['patient_id'] += 1
+
+# Write df to a CSV file
+df.to_csv('df_full_patient_id.csv', index=False)
+
+# Prepare the data for modeling
+x = df.drop(['Outcome', 'patient_id'], axis=1)  # Exclude 'patient_id' from the features
+y = df['Outcome']
+
+# Split the data into training and test sets
+x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.3, random_state=101)
+
+# Create and train the logistic regression model
+logmodel = LogisticRegression(max_iter=1000)  # Increase max_iter
+logmodel.fit(x_train, y_train)
+
+# Make predictions on the test set
+predictions = logmodel.predict(x_test)
+
+# Evaluate the model
+print("Accuracy:", accuracy_score(y_test, predictions))
+print("Confusion Matrix:\n", confusion_matrix(y_test, predictions))
+print("Classification Report:\n", classification_report(y_test, predictions))
+
+# Print the results with useful annotations
+
+# Convert x_test back to a DataFrame
+x_test_df = pd.DataFrame(x_test, columns=df.drop(['Outcome', 'patient_id'], axis=1).columns)
+
+# Get the patient_ids corresponding to the test set
+test_indices = y_test.index
+patient_ids_test = df.loc[test_indices, 'patient_id']
+
+# Add the patient_id, actual and predicted outcomes to the DataFrame
+df_output = pd.DataFrame({
+    'patient_id': patient_ids_test,
+    'Actual_Outcome': y_test,
+    'Predicted_Outcome': predictions
+}).reset_index(drop=True)
+
+# Apply if/then/else for Actual_Outcome_Text
+df_output['Actual_Outcome_Text'] = df_output['Actual_Outcome'].apply(
+    lambda x: "Actual Not Diabetes" if x == 0 else ("Actual Diabetes" if x == 1 else "NA")
+)
+
+# Apply if/then/else for Predicted_Outcome_Text
+df_output['Predicted_Outcome_Text'] = df_output['Predicted_Outcome'].apply(
+    lambda x: "Predicted Not Diabetes" if x == 0 else ("Predicted Diabetes" if x == 1 else "NA")
+)
+
+# Categorize the 'Model_Results' column with additional categories
+df_output['Model_Results'] = df_output.apply(
+    lambda row: "True Positive" if row['Actual_Outcome'] == 1 and row['Predicted_Outcome'] == 1 else
+                "False Positive" if row['Actual_Outcome'] == 0 and row['Predicted_Outcome'] == 1 else
+                "False Negative" if row['Actual_Outcome'] == 1 and row['Predicted_Outcome'] == 0 else
+                "True Negative" if row['Actual_Outcome'] == 0 and row['Predicted_Outcome'] == 0 else
+                "", axis=1
+)
+
+# Verify the results
+print(df_output.head())
+
+# Concatenate with x_test_df
+df_output = pd.concat([df_output, x_test_df.reset_index(drop=True)], axis=1)
+
+# Verify the results
+print(df_output.head())
+
+# Write df to a CSV file
+df_output.to_csv('diabetes_predicted.csv', index=False)
